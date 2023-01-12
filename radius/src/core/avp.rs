@@ -57,36 +57,63 @@ pub struct AVP {
     pub(crate) value: Vec<u8>,
 }
 
+macro_rules! avp_from_integral {
+    ($integral:ty) => {
+        |typ: AVPType, tag: Option<&Tag>, value: $integral| {
+            //const_assert!(len.is_none());
+            let bytes = &value.to_be_bytes();
+            AVP::from_maybe_tagged_bytes(typ, tag, bytes)
+        }
+    };
+    ($integral:ty, $len:expr) => {
+        |typ: AVPType, tag: Option<&Tag>, value: $integral| {
+            use std::mem::size_of;
+            extern crate static_assertions as sa;
+
+            let bytes = &value.to_be_bytes();
+            // "Integral byte size is less than requested length"
+            sa::const_assert!(size_of::<$integral>() >= $len);
+            let (discard, keep) = bytes.split_at(bytes.len()-$len);
+            assert!(
+                discard.iter().all(|&el| el == 0),
+                "Overflow, expected trimmed bytes to be all zero"
+            );
+            AVP::from_maybe_tagged_bytes(typ, tag, keep)
+        }
+    };
+}
+
+pub(crate) use avp_from_integral;
+
+pub fn to_unused_tag(tag: Option<&Tag>) -> &Tag {
+    tag.unwrap_or(&Tag {value: UNUSED_TAG_VALUE})
+}
+
 impl AVP {
-    /// (This method is for dictionary developers) make an AVP from a u32 value.
-    pub fn from_u32(typ: AVPType, value: u32) -> Self {
+    /// (This method is for dictionary developers) make an AVP from bytes, add tag if specified.
+    pub fn from_maybe_tagged_bytes(typ: AVPType, tag: Option<&Tag>, value: &[u8]) -> Self {
         AVP {
             typ,
-            value: u32::to_be_bytes(value).to_vec(),
+            value: match tag {
+                None => value.to_vec(),
+                Some(tag) => [vec![tag.value], value.to_vec()].concat()
+            }
         }
+    }
+
+    /// (This method is for dictionary developers) make an AVP from a u32 value.
+    pub fn from_u32(typ: AVPType, value: u32) -> Self {
+        avp_from_integral!(u32)(typ, None, value)
     }
 
     /// (This method is for dictionary developers) make an AVP from a u16 value.
     pub fn from_u16(typ: AVPType, value: u16) -> Self {
-        AVP {
-            typ,
-            value: u16::to_be_bytes(value).to_vec(),
-        }
+        avp_from_integral!(u16)(typ, None, value)
     }
 
     /// (This method is for dictionary developers) make an AVP from a tagged u32 value.
     pub fn from_tagged_u32(typ: AVPType, tag: Option<&Tag>, value: u32) -> Self {
-        let tag = match tag {
-            None => &Tag {
-                value: UNUSED_TAG_VALUE,
-            },
-            Some(tag) => tag,
-        };
-
-        AVP {
-            typ,
-            value: [vec![tag.value], u32::to_be_bytes(value).to_vec()].concat(),
-        }
+        avp_from_integral!(u32)(typ, Some(to_unused_tag(tag)), value)
     }
 
     /// (This method is for dictionary developers) make an AVP from a string value.

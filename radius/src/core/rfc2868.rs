@@ -64,6 +64,7 @@
 //! ```
 
 use crate::core::avp::{AVPError, AVPType, AVP};
+use crate::core::avp as avp;
 use crate::core::packet::Packet;
 use crate::core::tag::Tag;
 
@@ -74,7 +75,9 @@ pub fn delete_tunnel_type(packet: &mut Packet) {
 }
 /// Add `tunnel_type` tagged value-defined integer value to a packet.
 pub fn add_tunnel_type(packet: &mut Packet, tag: Option<&Tag>, value: TunnelType) {
-    packet.add(AVP::from_tagged_u32(TUNNEL_TYPE_TYPE, tag, value as u32));
+    packet.add(avp::avp_from_integral!(u32, 3)(
+        TUNNEL_TYPE_TYPE, Some(avp::to_unused_tag(tag)), value
+    ));
 }
 /// Lookup a `tunnel_type` tagged value-defined integer value from a packet.
 ///
@@ -102,10 +105,8 @@ pub fn delete_tunnel_medium_type(packet: &mut Packet) {
 }
 /// Add `tunnel_medium_type` tagged value-defined integer value to a packet.
 pub fn add_tunnel_medium_type(packet: &mut Packet, tag: Option<&Tag>, value: TunnelMediumType) {
-    packet.add(AVP::from_tagged_u32(
-        TUNNEL_MEDIUM_TYPE_TYPE,
-        tag,
-        value as u32,
+    packet.add(avp::avp_from_integral!(u32, 3)(
+        TUNNEL_MEDIUM_TYPE_TYPE, Some(avp::to_unused_tag(tag)), value as u32
     ));
 }
 /// Lookup a `tunnel_medium_type` tagged value-defined integer value from a packet.
